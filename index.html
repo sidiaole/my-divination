@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人占卜逻辑引擎 - Tarot Logic Lab</title>
+    <style>
+        :root { --bg: #1a1a1a; --text: #d4d4d4; --accent: #7aa2f7; --border: #333; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { border-bottom: 2px solid var(--accent); padding-bottom: 10px; font-size: 1.5rem; color: var(--accent); }
+        .controls { background: #252525; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        select, button, input { background: #333; color: white; border: 1px solid var(--border); padding: 8px 12px; border-radius: 4px; margin: 5px 0; }
+        button { background: var(--accent); color: #1a1a1a; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; margin-top: 10px; }
+        button:hover { opacity: 0.8; }
+        .card-result { background: #2d2d2d; border-left: 4px solid var(--accent); padding: 15px; margin-bottom: 15px; border-radius: 0 4px 4px 0; }
+        .pos-title { font-weight: bold; color: var(--accent); margin-bottom: 5px; font-size: 1.1rem; }
+        .card-name { font-weight: bold; color: #e0af68; }
+        .logic-hint { font-size: 0.9rem; color: #9ece6a; margin: 5px 0; font-style: italic; }
+        .reflection { color: #bb9af7; margin-top: 8px; font-size: 0.95rem; }
+        footer { margin-top: 50px; font-size: 0.8rem; text-align: center; color: #565f89; }
+    </style>
+</head>
+<body>
+
+<h1>Tarot Logic Lab <small style="font-size: 0.6rem; opacity: 0.7;">v1.0</small></h1>
+
+<div class="controls">
+    <div>
+        <label>设定体系：</label>
+        <select id="system">
+            <option value="RWS">伟特 (RWS) - 场景与叙事</option>
+            <option value="TDM">马赛 (TDM) - 元素与逻辑</option>
+        </select>
+    </div>
+    <div>
+        <label>选择牌阵：</label>
+        <select id="spread">
+            <option value="1">单张抽牌 (启发)</option>
+            <option value="3">三张牌 (原因-现状-建议)</option>
+            <option value="5">五张牌 (核心十字阵)</option>
+        </select>
+    </div>
+    <button onclick="runDivination()">执行逻辑抽选</button>
+</div>
+
+<div id="output"></div>
+
+<script>
+// --- 核心数据库 ---
+const ELEMENTS = {
+    "Wands": { name: "权杖(火)", field: "行动/事业", keywords: "动力、执行、创造、直觉" },
+    "Cups": { name: "圣杯(水)", field: "情感/关系", keywords: "感受、包容、人际、内省" },
+    "Swords": { name: "宝剑(风)", field: "思维/压力", keywords: "决策、逻辑、冲突、分析" },
+    "Pentacles": { name: "星币(土)", field: "物质/现实", keywords: "财务、身体、成果、安全" }
+};
+
+const NUMBERS = {
+    1: "种子/潜力", 2: "积蓄/二元", 3: "爆发/成果", 4: "稳定/僵化",
+    5: "动荡/挑战", 6: "调节/和谐", 7: "探索/跨越", 8: "进阶/规律",
+    9: "盈满/趋向", 10: "转型/终结"
+};
+
+const MAJOR_ARCANA = ["愚人", "魔术师", "女祭司", "女皇", "皇帝", "教皇", "恋人", "战车", "力量", "隐士", "命运之轮", "正义", "倒吊人", "死神", "节制", "恶魔", "高塔", "星星", "月亮", "太阳", "审判", "世界"];
+
+// --- 牌组生成 ---
+function createDeck() {
+    let deck = [];
+    // 大牌
+    MAJOR_ARCANA.forEach((name, i) => deck.push({ id: `M${i}`, name, type: 'Major' }));
+    // 小牌
+    const suits = Object.keys(ELEMENTS);
+    suits.forEach(suit => {
+        for(let i=1; i<=10; i++) {
+            deck.push({ id: `${suit}${i}`, number: i, suit: suit, type: 'Minor' });
+        }
+    });
+    return deck;
+}
+
+// --- 逻辑引擎 ---
+function shuffle(arr) {
+    return arr.sort(() => Math.random() - 0.5);
+}
+
+function runDivination() {
+    const sys = document.getElementById('system').value;
+    const count = parseInt(document.getElementById('spread').value);
+    const output = document.getElementById('output');
+    output.innerHTML = "";
+
+    let deck = shuffle(createDeck());
+    let results = deck.slice(0, count);
+
+    const positions = count === 3 ? ["原因/背景", "现状/挑战", "建议/导向"] : 
+                     (count === 5 ? ["核心", "阻碍", "理想", "根源", "结果"] : ["当日指引"]);
+
+    results.forEach((card, i) => {
+        let cardHTML = `<div class="card-result">`;
+        cardHTML += `<div class="pos-title">${positions[i] || '位置 ' + (i+1)}</div>`;
+        
+        if (card.type === 'Major') {
+            cardHTML += `<div class="card-name">${card.name} (大阿卡纳)</div>`;
+            cardHTML += `<div class="reflection">重大主题：代表该领域内不可忽视的原型力量。</div>`;
+        } else {
+            const el = ELEMENTS[card.suit];
+            const num = NUMBERS[card.number];
+            
+            if (sys === 'TDM') {
+                cardHTML += `<div class="card-name">${el.name} - 数字 ${card.number}</div>`;
+                cardHTML += `<div class="logic-hint">逻辑映射：${el.field} ∩ ${num}</div>`;
+                cardHTML += `<div class="reflection">引导思考：在该位置上，${el.keywords}的能量正处于${num}阶段，是由于过度稳定而僵化，还是由于刚起步而充满潜力？</div>`;
+            } else {
+                cardHTML += `<div class="card-name">${el.name.split('(')[0]}${card.number} (伟特风)</div>`;
+                cardHTML += `<div class="reflection">场景关键词：${el.keywords}、${num}的发展态势。</div>`;
+            }
+        }
+        cardHTML += `</div>`;
+        output.innerHTML += cardHTML;
+    });
+}
+</script>
+
+<footer>
+    <p>自用逻辑占卜工具 - 基于静态 HTML 构建</p>
+</footer>
+
+</body>
+</html>
