@@ -23,11 +23,13 @@
         .synthesis { color: #aff5b4; border: 1px dashed #aff5b4; padding: 10px; border-radius: 4px; margin-top: 10px; font-style: italic; }
         .yao-row { font-family: monospace; font-size: 1.4rem; letter-spacing: 5px; margin: 5px 0; }
         .hidden { display: none; }
+        /* 结算数值样式 */
+        .energy-tag { font-size: 0.75rem; padding: 2px 6px; background: #21262d; border-radius: 3px; margin-left: 8px; border: 1px solid #30363d; }
     </style>
 </head>
 <body>
 
-<h1>简易在线占卜 <small style="font-weight:normal; opacity:0.5; font-size:0.7rem;">SYSTEM LOGIC v3.5</small></h1>
+<h1>简易在线占卜 <small style="font-weight:normal; opacity:0.5; font-size:0.7rem;">SYSTEM LOGIC v3.5+</small></h1>
 
 <textarea id="question" placeholder="在此输入并默念待分析的系统状态或决策描述..."></textarea>
 
@@ -48,12 +50,21 @@
 <div id="output"></div>
 
 <script>
-// --- 1. 完全保留你 v3.0 的常量定义 ---
+// --- 1. 完全保留 v3.0 常量 ---
 const VERBS = { 1: "Initialization (初始化)", 2: "Branching (分化)", 3: "Expansion (扩张)", 4: "Anchoring (锚定)", 5: "Oscillation (振荡)", 6: "Calibration (校准)", 7: "Refactoring (重构)", 8: "Hardening (强化)", 9: "Satiety (充盈)", 10: "Cascade (级联)" };
 const ELEMENTS = { "Wands": { name: "权杖(火)", field: "意志驱动", abstract: "原始推力、直觉执行与消耗" }, "Cups": { name: "圣杯(水)", field: "感知调节", abstract: "内部反馈、波动与渗透" }, "Swords": { name: "宝剑(风)", field: "逻辑分割", abstract: "决策冲突、定义边界与精神压力" }, "Pentacles": { name: "星币(土)", field: "物质沉淀", abstract: "产出稳固性、资源积累与现实约束" } };
 const RELATIVES_MAP = { "子孙": "执行力/创意", "妻财": "产出资源/存量", "官鬼": "约束力/压强", "父母": "计划性/结构", "兄弟": "损耗因子/自我" };
 
-// --- 2. 完整的大牌数据库 (完全还原你 v3.0 的 22 张牌) ---
+// --- 新增：六爻博弈基础逻辑 ---
+const FIVE_ELEMENTS_LOGIC = {
+    "子孙": { element: "火", sheng: "妻财", ke: "官鬼" },
+    "妻财": { element: "土", sheng: "官鬼", ke: "父母" },
+    "官鬼": { element: "金", sheng: "父母", ke: "兄弟" },
+    "父母": { element: "水", sheng: "兄弟", ke: "子孙" },
+    "兄弟": { element: "木", sheng: "子孙", ke: "妻财" }
+};
+
+// --- 2. 完整大牌数据库 ---
 const DATA = [
     { id: 0, name: "愚人", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "纯粹的起始动力，不受既有结构约束的自由位移" },
     { id: 1, name: "魔术师", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Swords" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "资源的意识化整合，显性的创造性表达" },
@@ -94,7 +105,6 @@ function runEngine() {
         if (sys === 'LIUYAO') {
             executeLiuYao();
         } else {
-            // 这里完全保留你 v3.0 的 execute 逻辑
             const count = parseInt(document.getElementById('spread').value);
             const deck = getFullDeck().sort(() => Math.random() - 0.5);
             const drawn = deck.slice(0, count);
@@ -160,6 +170,14 @@ function render(cards, sys) {
     }
 
     let verdictHtml = `<div class="section"><h3>${sys === 'TDM' ? '3' : '2'}. 抽象动力学断语</h3>`;
+    // 增加组合检测
+    let comboMsg = "";
+    if(cards.length >= 2) {
+        const v1 = cards[0].number, v2 = cards[1].number;
+        if(v1 === 4 && v2 === 5) comboMsg = "【判定：结构疲劳】系统在锚定稳态时遭遇强力震荡，建议检查核心协议。";
+        if(v1 === 1 && v2 === 3) comboMsg = "【判定：爆发性冷启动】系统从零迅速扩张，需关注基础架构承载力。";
+    }
+
     cards.forEach(c => {
         const verb = c.isMajor ? "原型力量介入" : VERBS[c.number];
         const polarity = (sys === 'RWS' && c.isReversed) ? "【隐性/延迟/重构】" : "【显性/驱动/执行】";
@@ -172,35 +190,82 @@ function render(cards, sys) {
     });
     
     const synergy = (staticCount > cards.length/2 && warmCount < cards.length/2) ? "系统正处于极高效率的冷启动积蓄期，建议保持现状。" : "系统正在剧烈消耗能量以换取位移，需关注资源的可持续性。";
+    if(comboMsg) verdictHtml += `<div style="color:var(--highlight); margin-top:10px; font-size:0.9rem;">${comboMsg}</div>`;
     verdictHtml += `<div class="synthesis">系统研判结论：${synergy}</div></div>`;
 
     output.innerHTML = resHtml + envHtml + interactHtml + verdictHtml;
 }
 
-// --- 5. 新增的六爻逻辑层 ---
+// --- 5. 六爻逻辑层：新增能量结算系统 ---
 function executeLiuYao() {
     const yaoSymbols = { "阳": "—————", "阴": "—   —", "老阳": "— O —", "老阴": "— X —" };
     let hex = [];
+    const envMonth = "木"; // 固定模拟：木月
+    
+    // 初始化能量表
+    let energyWeights = { "子孙": 10, "妻财": 10, "官鬼": 10, "父母": 10, "兄弟": 10 };
+    
+    // 1. 环境修正 (Buff)
+    if(envMonth === "木") {
+        energyWeights["兄弟"] += 5; // 木同属性
+        energyWeights["子孙"] += 5; // 木生火
+        energyWeights["妻财"] -= 3; // 木克土
+    }
+
+    // 2. 摇卦
     for(let i=0; i<6; i++) {
         const coins = Math.floor(Math.random()*2) + Math.floor(Math.random()*2) + Math.floor(Math.random()*2);
         let type = (coins === 3) ? "老阳" : (coins === 0) ? "老阴" : (coins === 1) ? "阳" : "阴";
-        hex.push({ type, symbol: yaoSymbols[type], rel: Object.keys(RELATIVES_MAP)[Math.floor(Math.random()*5)], move: type.includes("老") });
+        const rel = Object.keys(RELATIVES_MAP)[Math.floor(Math.random()*5)];
+        const move = type.includes("老");
+        
+        hex.push({ type, symbol: yaoSymbols[type], rel, move });
+        
+        // 3. 动爻结算 (Offset)
+        if(move) {
+            const target = FIVE_ELEMENTS_LOGIC[rel].ke;
+            energyWeights[target] -= 8; // 强效对冲
+        }
     }
-    renderLiuYao(hex);
+    renderLiuYao(hex, energyWeights);
 }
 
-function renderLiuYao(hex) {
+function renderLiuYao(hex, weights) {
     let html = `<div class="section" style="text-align:center;"><h3>六爻卦象 (自下而上)</h3>`;
     [...hex].reverse().forEach(y => {
         html += `<div class="yao-row" style="color:${y.move?'var(--highlight)':'var(--text)'}">${y.symbol} <small>[${y.rel}]</small></div>`;
     });
     html += `</div>`;
     
+    // 显性数值结算报告
+    html += `<div class="section"><h3>能量权重结算报告 (数值对冲)</h3><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">`;
+    Object.keys(weights).forEach(k => {
+        let val = weights[k] < 0 ? 0 : weights[k];
+        let color = val > 10 ? "var(--highlight)" : val < 5 ? "#f44336" : "var(--text)";
+        html += `<div class="energy-tag" style="color:${color}">${k}: ${val}</div>`;
+    });
+    html += `</div>`;
+
     const moving = hex.filter(h => h.move);
-    html += `<div class="section"><h3>变量博弈报告</h3>`;
-    if(moving.length === 0) html += `<p>系统处于静态平衡，建议维持现状。</p>`;
-    else moving.forEach(m => html += `<p>检测到 <strong>${m.rel}</strong> 因子活跃，其背后的 <strong>${RELATIVES_MAP[m.rel]}</strong> 正在发生位移。</p>`);
-    html += `<div class="synthesis">博弈总结：系统当前的对冲点在于内部变量的能量结算余量。</div></div>`;
+    html += `<div style="margin-top:20px;"><h3>变量博弈详情</h3>`;
+    if(moving.length === 0) {
+        html += `<p>系统处于<strong>静态平衡</strong>，能量权重受环境维持。建议维持现状。</p>`;
+    } else {
+        moving.forEach(m => {
+            const target = FIVE_ELEMENTS_LOGIC[m.rel].ke;
+            html += `<p>动能触发：<strong>${m.rel}</strong> 正在对冲 <strong>${target}</strong>。 
+            <small style="color:var(--dim)">原因：${RELATIVES_MAP[m.rel]} 维度的位移强制修正了 ${RELATIVES_MAP[target]} 的稳态。</small></p>`;
+        });
+    }
+    
+    // 自动总结
+    let summary = "";
+    if(weights["官鬼"] > 12) summary = "【警告】系统压强(官鬼)过载，约束逻辑强于执行逻辑。";
+    else if(weights["妻财"] < 5) summary = "【风险】资源存量(妻财)被对冲严重，处于负向损耗状态。";
+    else if(weights["子孙"] > 12) summary = "【利好】执行力(子孙)获得爆发性环境加成，压强已被有效对冲。";
+    else summary = "系统当前的对冲点在于内部变量的能量结算余量。";
+
+    html += `<div class="synthesis">博弈总结：${summary}</div></div>`;
     document.getElementById('output').innerHTML = html;
 }
 </script>
