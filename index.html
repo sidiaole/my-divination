@@ -3,159 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>在线占卜 (v2.0)</title>
+    <title>简易在线占卜 (v3.0 - Logic Only)</title>
     <style>
-        :root { --bg: #0f1419; --card-bg: #192129; --accent: #7aa2f7; --text: #e1e1e1; --dim: #565f89; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-        h1 { color: var(--accent); font-size: 1.2rem; border-bottom: 1px solid var(--dim); padding-bottom: 10px; }
-        textarea { width: 100%; height: 60px; background: #000; color: #fff; border: 1px solid var(--dim); padding: 10px; box-sizing: border-box; border-radius: 4px; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
-        select, button { background: var(--card-bg); color: #fff; border: 1px solid var(--dim); padding: 8px; border-radius: 4px; cursor: pointer; }
-        button { background: var(--accent); color: #000; font-weight: bold; border: none; }
-        .section { background: var(--card-bg); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
-        .pos-card { border-left: 3px solid var(--accent); padding-left: 15px; margin-bottom: 15px; }
-        .meta { font-size: 0.85rem; color: var(--dim); margin-top: 4px; }
-        .analysis-block { border-top: 1px solid #333; margin-top: 15px; padding-top: 10px; }
-        h3 { font-size: 1rem; color: var(--accent); margin: 10px 0; }
-        .highlight { color: #e0af68; } /* 强调词颜色 */
+        :root { --bg: #0d1117; --card-bg: #161b22; --accent: #58a6ff; --text: #c9d1d9; --dim: #8b949e; --highlight: #d29922; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+        h1 { color: var(--accent); font-size: 1.4rem; border-bottom: 1px solid #30363d; padding-bottom: 15px; letter-spacing: 1px; }
+        textarea { width: 100%; height: 80px; background: #000; color: #fff; border: 1px solid #30363d; padding: 12px; box-sizing: border-box; border-radius: 6px; font-size: 1rem; margin-bottom: 10px; }
+        .controls { display: grid; grid-template-columns: 1.5fr 1fr 0.5fr; gap: 10px; margin-bottom: 25px; }
+        select, button { background: var(--card-bg); color: #fff; border: 1px solid #30363d; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        button { background: var(--accent); color: #0d1117; font-weight: bold; border: none; transition: 0.2s; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        .section { background: var(--card-bg); padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .card-row { border-left: 4px solid var(--accent); padding-left: 15px; margin-bottom: 20px; }
+        .card-name { font-size: 1.1rem; font-weight: bold; color: var(--highlight); }
+        .meta-tags { font-size: 0.85rem; color: var(--dim); margin: 5px 0; font-family: monospace; }
+        .analysis-text { font-size: 0.95rem; margin-top: 10px; }
+        h3 { font-size: 1rem; color: var(--accent); margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; }
+        .synthesis { color: #aff5b4; border: 1px dashed #aff5b4; padding: 10px; border-radius: 4px; margin-top: 10px; font-style: italic; }
     </style>
 </head>
 <body>
 
-<h1>在线占卜</h1>
+<h1>简易在线占卜 <small style="font-weight:normal; opacity:0.5; font-size:0.7rem;">SYSTEM LOGIC v3.0</small></h1>
 
-<textarea id="question" placeholder="输入你的问题...(尽可能详细而不要模糊)"></textarea>
+<textarea id="question" placeholder="在此输入待分析的系统状态或决策描述..."></textarea>
 
 <div class="controls">
     <select id="system">
         <option value="TDM">马赛塔罗</option>
-        <option value="RWS">韦特塔罗</option>
+        <option value="RWS">伟特塔罗</option>
     </select>
     <select id="spread">
-        <option value="1">单牌阵 (启发)</option>
-        <option value="3">三牌阵 (过程推导)</option>
-        <option value="5">五牌阵 (结构分析)</option>
+        <option value="1">单牌阵-启发 (Single)</option>
+        <option value="3">三牌阵-线性推导 (Process)</option>
+        <option value="5">五牌阵-结构解构 (Cross)</option>
     </select>
+    <button onclick="runEngine()">抽牌解牌...</button>
 </div>
-<button onclick="runEngine()">执行</button>
 
 <div id="output"></div>
 
 <script>
-// --- 核心数据库：22张大牌 ---
+// --- 抽象演化动词表 ---
+const VERBS = {
+    1: "Initialization (初始化)", 2: "Branching (分化)", 3: "Expansion (扩张)",
+    4: "Anchoring (锚定)", 5: "Oscillation (振荡)", 6: "Calibration (校准)",
+    7: "Refactoring (重构)", 8: "Hardening (强化)", 9: "Satiety (充盈)", 10: "Cascade (级联)"
+};
+
+const ELEMENTS = {
+    "Wands": { name: "权杖(火)", field: "意志驱动", abstract: "原始推力、直觉执行与消耗" },
+    "Cups": { name: "圣杯(水)", field: "感知调节", abstract: "内部反馈、波动与渗透" },
+    "Swords": { name: "宝剑(风)", field: "逻辑分割", abstract: "决策冲突、定义边界与精神压力" },
+    "Pentacles": { name: "星币(土)", field: "物质沉淀", abstract: "产出稳固性、资源积累与现实约束" }
+};
+
+// --- 大牌数据库 (整合朝向与场景属性) ---
 const DATA = [
-    { id: 0, name: "愚人", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Fire" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "纯粹的起始动力，不受既有结构约束的自由位移" },
-    { id: 1, name: "魔术师", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Air" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "资源的意识化整合，显性的创造性表达" },
-    { id: 2, name: "女祭司", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Water" }, rws: { climate: "Neutral", focus: "Individual" }, abstract: "能量的深度内敛，非公开的逻辑积蓄与静止观察" },
-    { id: 3, name: "女皇", tdm: { gaze: "Right", vibe: "Warm", pacing: "Static", element: "Earth" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "丰盈的系统增量，自然演化下的资源扩张" },
-    { id: 4, name: "皇帝", tdm: { gaze: "Left", vibe: "Warm", pacing: "Static", element: "Fire" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "既有秩序的维护，高度结构化的稳定与控制" },
-    { id: 5, name: "教皇", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Earth" }, rws: { climate: "Neutral", focus: "Interpersonal" }, abstract: "社会性契约的建立，通过共识达成的系统稳态" },
-    { id: 6, name: "恋人", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Air" }, rws: { climate: "Bright", focus: "Interpersonal" }, abstract: "关系维度的交互，基于吸引力或选择产生的能量共振" },
-    { id: 7, name: "战车", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Fire" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "高强度的意志驱动，强制性的目标达成与位移" },
-    { id: 8, name: "力量", tdm: { gaze: "Left", vibe: "Warm", pacing: "Active", element: "Fire" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "内在能量的调和，对原始冲动的柔性引导与控制" },
-    { id: 9, name: "隐士", tdm: { gaze: "Left", vibe: "Cool", pacing: "Static", element: "Earth" }, rws: { climate: "Grey", focus: "Individual" }, abstract: "能量的回溯与剥离，寻找核心本质的缓慢进程" },
-    { id: 10, name: "命运之轮", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Active", element: "Air" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "非线性周期性变动，系统级别的自动演化逻辑" },
-    { id: 11, name: "正义", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Air" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "因果律的即时判定，平衡状态的强制性纠偏" },
-    { id: 12, name: "倒吊人", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Water" }, rws: { climate: "Neutral", focus: "Individual" }, abstract: "能量的极端停滞，通过视角倒置触发的逻辑转换" },
-    { id: 13, name: "死神", tdm: { gaze: "Left", vibe: "Cool", pacing: "Active", element: "Water" }, rws: { climate: "Grey", focus: "Environment" }, abstract: "旧有结构的彻底拆解，不可逆转的能量出清" },
-    { id: 14, name: "节制", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Water" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "对立能量的动态平衡，系统内部的精细调节" },
-    { id: 15, name: "恶魔", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Static", element: "Fire" }, rws: { climate: "Grey", focus: "Interpersonal" }, abstract: "物质层面的过度耦合，被本能或欲望束缚的能量状态" },
-    { id: 16, name: "高塔", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Fire" }, rws: { climate: "Grey", focus: "Environment" }, abstract: "僵化结构的突发性崩溃，释放被压抑能量的剧烈震荡" },
-    { id: 17, name: "星星", tdm: { gaze: "Left", vibe: "Cool", pacing: "Static", element: "Water" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "压力的释放与修复，基于愿景产生的长效指引" },
-    { id: 18, name: "月亮", tdm: { gaze: "Left", vibe: "Cool", pacing: "Active", element: "Water" }, rws: { climate: "Grey", focus: "Individual" }, abstract: "潜意识的波动与幻觉，逻辑不明朗的迷雾阶段" },
-    { id: 19, name: "太阳", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Fire" }, rws: { climate: "Bright", focus: "Interpersonal" }, abstract: "能量的高度显性化，全面的清晰度与积极反馈" },
-    { id: 20, name: "审判", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Active", element: "Fire" }, rws: { climate: "Bright", focus: "Interpersonal" }, abstract: "使命感的觉醒，系统层面的全面升级与重塑" },
-    { id: 21, name: "世界", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Earth" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "逻辑闭环的达成，系统运行的圆满稳态" }
+    { id: 0, name: "愚人", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "纯粹的起始动力，不受既有结构约束的自由位移" },
+    { id: 1, name: "魔术师", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Swords" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "资源的意识化整合，显性的创造性表达" },
+    { id: 2, name: "女祭司", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Cups" }, rws: { climate: "Neutral", focus: "Individual" }, abstract: "能量的深度内敛，非公开的逻辑积蓄与静止观察" },
+    { id: 3, name: "女皇", tdm: { gaze: "Right", vibe: "Warm", pacing: "Static", element: "Pentacles" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "丰盈的系统增量，自然演化下的资源扩张" },
+    { id: 4, name: "皇帝", tdm: { gaze: "Left", vibe: "Warm", pacing: "Static", element: "Wands" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "既有秩序的维护，高度结构化的稳定与控制" },
+    { id: 5, name: "教皇", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Pentacles" }, rws: { climate: "Neutral", focus: "Interpersonal" }, abstract: "社会性契约的建立，通过共识达成的系统稳态" },
+    { id: 6, name: "恋人", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Swords" }, rws: { climate: "Bright", focus: "Interpersonal" }, abstract: "关系维度的交互，基于吸引力或选择产生的能量共振" },
+    { id: 7, name: "战车", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "高强度的意志驱动，强制性的目标达成与位移" },
+    { id: 8, name: "力量", tdm: { gaze: "Left", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "内在能量的调和，对原始冲动的柔性引导与控制" },
+    { id: 9, name: "隐士", tdm: { gaze: "Left", vibe: "Cool", pacing: "Static", element: "Pentacles" }, rws: { climate: "Grey", focus: "Individual" }, abstract: "能量的回溯与剥离，寻找核心本质的缓慢进程" },
+    { id: 10, name: "命运之轮", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Active", element: "Swords" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "非线性周期性变动，系统级别的自动演化逻辑" },
+    { id: 11, name: "正义", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Swords" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "因果律的即时判定，平衡状态的强制性纠偏" },
+    { id: 12, name: "倒吊人", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Cups" }, rws: { climate: "Neutral", focus: "Individual" }, abstract: "能量的极端停滞，通过视角倒置触发的逻辑转换" },
+    { id: 13, name: "死神", tdm: { gaze: "Left", vibe: "Cool", pacing: "Active", element: "Cups" }, rws: { climate: "Grey", focus: "Environment" }, abstract: "旧有结构的彻底拆解，不可逆转的能量出清" },
+    { id: 14, name: "节制", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Cups" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "对立能量的动态平衡，系统内部的精细调节" },
+    { id: 15, name: "恶魔", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Static", element: "Wands" }, rws: { climate: "Grey", focus: "Interpersonal" }, abstract: "物质层面的过度耦合，被本能或欲望束缚的能量状态" },
+    { id: 16, name: "高塔", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Grey", focus: "Environment" }, abstract: "僵化结构的突发性崩溃，释放被压抑能量的剧烈震荡" },
+    { id: 17, name: "星星", tdm: { gaze: "Left", vibe: "Cool", pacing: "Static", element: "Cups" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "压力的释放与修复，基于愿景产生的长效指引" },
+    { id: 18, name: "月亮", tdm: { gaze: "Left", vibe: "Cool", pacing: "Active", element: "Cups" }, rws: { climate: "Grey", focus: "Individual" }, abstract: "潜意识的波动与幻觉，逻辑不明朗的迷雾阶段" },
+    { id: 19, name: "太阳", tdm: { gaze: "Middle", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Interpersonal" }, abstract: "能量的高度显性化，全面的清晰度与积极反馈" },
+    { id: 20, name: "审判", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Interpersonal" }, abstract: "使命感的觉醒，系统层面的全面升级与重塑" },
+    { id: 21, name: "世界", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Pentacles" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "逻辑闭环的达成，系统运行的圆满稳态" }
 ];
 
-// 56张小牌逻辑生成 (简化版，复用元素属性)
-const SUITS = [
-    { name: "权杖", element: "Fire", vibe: "Warm", pacing: "Active", climate: "Bright" },
-    { name: "圣杯", element: "Water", vibe: "Cool", pacing: "Static", climate: "Neutral" },
-    { name: "宝剑", element: "Air", vibe: "Cool", pacing: "Active", climate: "Grey" },
-    { name: "星币", element: "Earth", vibe: "Cool", pacing: "Static", climate: "Bright" }
-];
-
+// --- 逻辑初始化 ---
 function getFullDeck() {
-    let deck = JSON.parse(JSON.stringify(DATA)); // 拷贝大牌
-    SUITS.forEach(s => {
+    let deck = JSON.parse(JSON.stringify(DATA));
+    Object.keys(ELEMENTS).forEach(key => {
+        const el = ELEMENTS[key];
+        const vibe = (key === 'Wands' || key === 'Pentacles' && Math.random()>0.5) ? 'Warm' : 'Cool';
         for(let i=1; i<=10; i++) {
             deck.push({
-                id: s.name + i, name: s.name + i,
-                tdm: { gaze: i % 2 === 0 ? "Left" : "Right", vibe: s.vibe, pacing: s.pacing, element: s.element },
-                rws: { climate: s.climate, focus: "Individual" },
-                abstract: `${s.element}领域的第${i}阶段动力演化`
+                id: key + i, name: key + i, number: i, isMajor: false,
+                tdm: { gaze: i % 2 === 0 ? "Left" : "Right", vibe: vibe, pacing: i % 3 === 0 ? "Active" : "Static", element: key },
+                rws: { climate: vibe === 'Warm' ? 'Bright' : 'Grey', focus: "Individual" },
+                abstract: `${el.field}领域的演化状态`
             });
         }
     });
     return deck;
 }
 
-// --- 逻辑计算引擎 ---
 function runEngine() {
     const sys = document.getElementById('system').value;
     const count = parseInt(document.getElementById('spread').value);
     const deck = getFullDeck().sort(() => Math.random() - 0.5);
     const drawn = deck.slice(0, count);
-    
-    // 给每张牌计算正逆位
     drawn.forEach(c => c.isReversed = Math.random() > 0.5);
-
     render(drawn, sys);
 }
 
 function render(cards, sys) {
-    let html = `<div class="section"><h3>抽牌结果</h3>`;
+    let output = document.getElementById('output');
+    output.innerHTML = "";
+
+    // 1. 结果看板
+    let resHtml = `<div class="section"><h3>抽牌数据看板</h3>`;
     cards.forEach((c, i) => {
         const detail = sys === 'TDM' ? 
-            `元素: ${c.tdm.element} | 颜色: ${c.tdm.vibe === 'Warm' ? '暖色' : '冷色'} | 朝向: ${c.tdm.gaze}` :
-            `极性: ${c.isReversed ? '逆位 (隐性)' : '正位 (显性)'} | 环境: ${c.rws.climate} | 焦点: ${c.rws.focus}`;
-        
-        html += `<div class="pos-card">
-            <div>位置 ${i+1}: <span class="card-name">${c.name}</span></div>
-            <div class="meta">${detail}</div>
+            `[ 视线: ${c.tdm.gaze} | 温感: ${c.tdm.vibe} | 领域: ${ELEMENTS[c.tdm.element].name} ]` :
+            `[ 极性: ${c.isReversed ? '逆位/隐性' : '正位/显性'} | 氛围: ${c.rws.climate} | 焦点: ${c.rws.focus} ]`;
+        resHtml += `<div class="card-row">
+            <span class="card-name">${c.name}</span>
+            <div class="meta-tags">${detail}</div>
         </div>`;
     });
-    html += `</div>`;
+    resHtml += `</div>`;
 
-    // 解牌逻辑：全局环境
+    // 2. 环境对冲分析
     const warmCount = cards.filter(c => c.tdm.vibe === 'Warm').length;
     const staticCount = cards.filter(c => c.tdm.pacing === 'Static').length;
-    
-    html += `<div class="section"><h3>1. 全局环境分析</h3>
-        <p>基调: <span class="highlight">${warmCount > cards.length/2 ? '扩张、显性消耗、高活跃度' : '收缩、内敛冷静、能量积蓄'}</span></p>
-        <p>状态: <span class="highlight">${staticCount > cards.length/2 ? '结构化维持阶段，强调秩序与观察' : '流动与转化阶段，强调执行与位移'}</span></p>
+    let envHtml = `<div class="section"><h3>1. 全局动力环境分析</h3>
+        <p>基调: <span class="highlight">${warmCount > cards.length/2 ? '显性扩张/高熵消耗' : '内敛收缩/低熵积蓄'}</span></p>
+        <p>状态: <span class="highlight">${staticCount > cards.length/2 ? '结构化稳态/强调观察' : '流动性转化/强调执行'}</span></p>
     </div>`;
 
-    // 关键互动 (仅 TDM 模式)
+    // 3. 核心互动 (TDM 专属)
+    let interactHtml = "";
     if (sys === 'TDM' && cards.length > 1) {
-        html += `<div class="section"><h3>2. 关键互动 (视线逻辑)</h3>`;
+        interactHtml = `<div class="section"><h3>2. 关键互动 (视线引擎)</h3>`;
         for(let i=0; i<cards.length-1; i++) {
             const a = cards[i], b = cards[i+1];
-            let logic = "能量独立，缺乏直接逻辑关联";
-            if(a.tdm.gaze === "Right" && b.tdm.gaze === "Left") logic = "视线交汇。能量正面碰撞，此处为逻辑纠缠的核心点";
-            if(a.tdm.gaze === "Left" && b.tdm.gaze === "Right") logic = "背离朝向。系统存在焦点断层，两者处于互不干涉状态";
-            if(a.tdm.gaze === b.tdm.gaze && a.tdm.gaze !== "Middle") logic = "同向追随。逻辑具有连贯性，当前环节为下一阶段提供持续驱动";
-            html += `<p>* [${a.name}] & [${b.name}]: ${logic}</p>`;
+            let logic = "能量独立，逻辑链条处于离散状态";
+            if(a.tdm.gaze === "Right" && b.tdm.gaze === "Left") logic = "【视线交汇】。能量发生正面碰撞，此处为逻辑纠缠与矛盾的核心";
+            if(a.tdm.gaze === "Left" && b.tdm.gaze === "Right") logic = "【背离朝向】。系统存在焦点断层，两环节处于互不干涉/回避状态";
+            if(a.tdm.gaze === b.tdm.gaze && a.tdm.gaze !== "Middle") logic = "【同向追随】。逻辑具有连贯性，前置能量为后置环节提供持续驱动";
+            interactHtml += `<p>* 节点[${a.name}] & [${b.name}]: ${logic}</p>`;
         }
-        html += `</div>`;
+        interactHtml += `</div>`;
     }
 
-    // 最终断语
-    html += `<div class="section"><h3>${sys === 'TDM' ? '3' : '2'}. 动力学断语</h3>`;
+    // 4. 动力学断语
+    let verdictHtml = `<div class="section"><h3>${sys === 'TDM' ? '3' : '2'}. 抽象动力学断语</h3>`;
     cards.forEach(c => {
-        let text = c.abstract;
-        if (sys === 'RWS' && c.isReversed) text = "【能量内敛/延迟】" + text;
-        html += `<p><strong>${c.name}:</strong> ${text}</p>`;
+        const verb = c.isMajor ? "原型力量介入" : VERBS[c.number];
+        const polarity = (sys === 'RWS' && c.isReversed) ? "【隐性/延迟/重构】" : "【显性/驱动/执行】";
+        const elementField = c.isMajor ? "跨领域" : ELEMENTS[c.tdm.element].field;
+        
+        verdictHtml += `<div style="margin-bottom:15px;">
+            <strong>${c.name}:</strong> ${polarity} 在 ${elementField} 维度执行 <strong>${verb}</strong>。<br>
+            <span class="meta-tags">> 逻辑锚点: ${c.abstract}</span>
+        </div>`;
     });
-    html += `</div>`;
+    
+    // 5. 综合判定 (Synthesis)
+    const synergy = (staticCount > cards.length/2 && warmCount < cards.length/2) ? "系统正处于极高效率的冷启动积蓄期，建议保持现状。" : "系统正在剧烈消耗能量以换取位移，需关注资源的可持续性。";
+    verdictHtml += `<div class="synthesis">系统研判结论：${synergy}</div></div>`;
 
-    document.getElementById('output').innerHTML = html;
+    output.innerHTML = resHtml + envHtml + interactHtml + verdictHtml;
 }
 </script>
 
-<footer>
-    <p style="text-align:center; color:var(--dim); font-size: 0.8rem; margin-top:40px;">个人逻辑分析工具 · 非语境化引导</p>
-</footer>
 </body>
 </html>
