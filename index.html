@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>简易在线占卜 (v3.0 - Logic Only)</title>
+    <title>简易在线占卜</title>
     <style>
+        /* 完全保留你 v3.0 的原始样式 */
         :root { --bg: #0d1117; --card-bg: #161b22; --accent: #58a6ff; --text: #c9d1d9; --dim: #8b949e; --highlight: #d29922; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
         h1 { color: var(--accent); font-size: 1.4rem; border-bottom: 1px solid #30363d; padding-bottom: 15px; letter-spacing: 1px; }
@@ -20,45 +21,39 @@
         .analysis-text { font-size: 0.95rem; margin-top: 10px; }
         h3 { font-size: 1rem; color: var(--accent); margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; }
         .synthesis { color: #aff5b4; border: 1px dashed #aff5b4; padding: 10px; border-radius: 4px; margin-top: 10px; font-style: italic; }
+        .yao-row { font-family: monospace; font-size: 1.4rem; letter-spacing: 5px; margin: 5px 0; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-<h1>简易在线占卜 <small style="font-weight:normal; opacity:0.5; font-size:0.7rem;">SYSTEM LOGIC v3.0</small></h1>
+<h1>简易在线占卜 <small style="font-weight:normal; opacity:0.5; font-size:0.7rem;">SYSTEM LOGIC v3.5</small></h1>
 
-<textarea id="question" placeholder="在此输入待分析的系统状态或决策描述..."></textarea>
+<textarea id="question" placeholder="在此输入并默念待分析的系统状态或决策描述..."></textarea>
 
 <div class="controls">
-    <select id="system">
+    <select id="system" onchange="toggleUI()">
         <option value="TDM">马赛塔罗</option>
-        <option value="RWS">伟特塔罗</option>
+        <option value="RWS">韦特塔罗</option>
+        <option value="LIUYAO">六爻起卦</option>
     </select>
     <select id="spread">
         <option value="1">单牌阵-启发 (Single)</option>
         <option value="3">三牌阵-线性推导 (Process)</option>
         <option value="5">五牌阵-结构解构 (Cross)</option>
     </select>
-    <button onclick="runEngine()">抽牌解牌...</button>
+    <button onclick="runEngine()">执行分析...</button>
 </div>
 
 <div id="output"></div>
 
 <script>
-// --- 抽象演化动词表 ---
-const VERBS = {
-    1: "Initialization (初始化)", 2: "Branching (分化)", 3: "Expansion (扩张)",
-    4: "Anchoring (锚定)", 5: "Oscillation (振荡)", 6: "Calibration (校准)",
-    7: "Refactoring (重构)", 8: "Hardening (强化)", 9: "Satiety (充盈)", 10: "Cascade (级联)"
-};
+// --- 1. 完全保留你 v3.0 的常量定义 ---
+const VERBS = { 1: "Initialization (初始化)", 2: "Branching (分化)", 3: "Expansion (扩张)", 4: "Anchoring (锚定)", 5: "Oscillation (振荡)", 6: "Calibration (校准)", 7: "Refactoring (重构)", 8: "Hardening (强化)", 9: "Satiety (充盈)", 10: "Cascade (级联)" };
+const ELEMENTS = { "Wands": { name: "权杖(火)", field: "意志驱动", abstract: "原始推力、直觉执行与消耗" }, "Cups": { name: "圣杯(水)", field: "感知调节", abstract: "内部反馈、波动与渗透" }, "Swords": { name: "宝剑(风)", field: "逻辑分割", abstract: "决策冲突、定义边界与精神压力" }, "Pentacles": { name: "星币(土)", field: "物质沉淀", abstract: "产出稳固性、资源积累与现实约束" } };
+const RELATIVES_MAP = { "子孙": "执行力/创意", "妻财": "产出资源/存量", "官鬼": "约束力/压强", "父母": "计划性/结构", "兄弟": "损耗因子/自我" };
 
-const ELEMENTS = {
-    "Wands": { name: "权杖(火)", field: "意志驱动", abstract: "原始推力、直觉执行与消耗" },
-    "Cups": { name: "圣杯(水)", field: "感知调节", abstract: "内部反馈、波动与渗透" },
-    "Swords": { name: "宝剑(风)", field: "逻辑分割", abstract: "决策冲突、定义边界与精神压力" },
-    "Pentacles": { name: "星币(土)", field: "物质沉淀", abstract: "产出稳固性、资源积累与现实约束" }
-};
-
-// --- 大牌数据库 (整合朝向与场景属性) ---
+// --- 2. 完整的大牌数据库 (完全还原你 v3.0 的 22 张牌) ---
 const DATA = [
     { id: 0, name: "愚人", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Wands" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "纯粹的起始动力，不受既有结构约束的自由位移" },
     { id: 1, name: "魔术师", tdm: { gaze: "Right", vibe: "Warm", pacing: "Active", element: "Swords" }, rws: { climate: "Bright", focus: "Individual" }, abstract: "资源的意识化整合，显性的创造性表达" },
@@ -84,7 +79,32 @@ const DATA = [
     { id: 21, name: "世界", tdm: { gaze: "Middle", vibe: "Cool", pacing: "Static", element: "Pentacles" }, rws: { climate: "Bright", focus: "Environment" }, abstract: "逻辑闭环的达成，系统运行的圆满稳态" }
 ];
 
-// --- 逻辑初始化 ---
+// --- 3. 逻辑分流函数 ---
+function toggleUI() {
+    const sys = document.getElementById('system').value;
+    document.getElementById('spread').style.display = (sys === 'LIUYAO') ? 'none' : 'block';
+}
+
+function runEngine() {
+    const sys = document.getElementById('system').value;
+    const output = document.getElementById('output');
+    output.innerHTML = "<p style='text-align:center;'>正在进行系统逻辑演化...</p>";
+
+    setTimeout(() => {
+        if (sys === 'LIUYAO') {
+            executeLiuYao();
+        } else {
+            // 这里完全保留你 v3.0 的 execute 逻辑
+            const count = parseInt(document.getElementById('spread').value);
+            const deck = getFullDeck().sort(() => Math.random() - 0.5);
+            const drawn = deck.slice(0, count);
+            drawn.forEach(c => c.isReversed = Math.random() > 0.5);
+            render(drawn, sys);
+        }
+    }, 500);
+}
+
+// --- 4. 完全还原 v3.0 的 getFullDeck, render 函数 ---
 function getFullDeck() {
     let deck = JSON.parse(JSON.stringify(DATA));
     Object.keys(ELEMENTS).forEach(key => {
@@ -102,20 +122,10 @@ function getFullDeck() {
     return deck;
 }
 
-function runEngine() {
-    const sys = document.getElementById('system').value;
-    const count = parseInt(document.getElementById('spread').value);
-    const deck = getFullDeck().sort(() => Math.random() - 0.5);
-    const drawn = deck.slice(0, count);
-    drawn.forEach(c => c.isReversed = Math.random() > 0.5);
-    render(drawn, sys);
-}
-
 function render(cards, sys) {
     let output = document.getElementById('output');
     output.innerHTML = "";
 
-    // 1. 结果看板
     let resHtml = `<div class="section"><h3>抽牌数据看板</h3>`;
     cards.forEach((c, i) => {
         const detail = sys === 'TDM' ? 
@@ -128,7 +138,6 @@ function render(cards, sys) {
     });
     resHtml += `</div>`;
 
-    // 2. 环境对冲分析
     const warmCount = cards.filter(c => c.tdm.vibe === 'Warm').length;
     const staticCount = cards.filter(c => c.tdm.pacing === 'Static').length;
     let envHtml = `<div class="section"><h3>1. 全局动力环境分析</h3>
@@ -136,22 +145,20 @@ function render(cards, sys) {
         <p>状态: <span class="highlight">${staticCount > cards.length/2 ? '结构化稳态/强调观察' : '流动性转化/强调执行'}</span></p>
     </div>`;
 
-    // 3. 核心互动 (TDM 专属)
     let interactHtml = "";
     if (sys === 'TDM' && cards.length > 1) {
         interactHtml = `<div class="section"><h3>2. 关键互动 (视线引擎)</h3>`;
         for(let i=0; i<cards.length-1; i++) {
             const a = cards[i], b = cards[i+1];
             let logic = "能量独立，逻辑链条处于离散状态";
-            if(a.tdm.gaze === "Right" && b.tdm.gaze === "Left") logic = "【视线交汇】。能量发生正面碰撞，此处为逻辑纠缠与矛盾的核心";
-            if(a.tdm.gaze === "Left" && b.tdm.gaze === "Right") logic = "【背离朝向】。系统存在焦点断层，两环节处于互不干涉/回避状态";
-            if(a.tdm.gaze === b.tdm.gaze && a.tdm.gaze !== "Middle") logic = "【同向追随】。逻辑具有连贯性，前置能量为后置环节提供持续驱动";
+            if(a.tdm.gaze === "Right" && b.tdm.gaze === "Left") logic = "【视线交汇】能量发生正面碰撞，此处为逻辑纠缠与矛盾的核心";
+            if(a.tdm.gaze === "Left" && b.tdm.gaze === "Right") logic = "【背离朝向】系统存在焦点断层，两环节处于互不干涉/回避状态";
+            if(a.tdm.gaze === b.tdm.gaze && a.tdm.gaze !== "Middle") logic = "【同向追随】逻辑具有连贯性，前置能量为后置环节提供持续驱动";
             interactHtml += `<p>* 节点[${a.name}] & [${b.name}]: ${logic}</p>`;
         }
         interactHtml += `</div>`;
     }
 
-    // 4. 动力学断语
     let verdictHtml = `<div class="section"><h3>${sys === 'TDM' ? '3' : '2'}. 抽象动力学断语</h3>`;
     cards.forEach(c => {
         const verb = c.isMajor ? "原型力量介入" : VERBS[c.number];
@@ -164,13 +171,38 @@ function render(cards, sys) {
         </div>`;
     });
     
-    // 5. 综合判定 (Synthesis)
     const synergy = (staticCount > cards.length/2 && warmCount < cards.length/2) ? "系统正处于极高效率的冷启动积蓄期，建议保持现状。" : "系统正在剧烈消耗能量以换取位移，需关注资源的可持续性。";
     verdictHtml += `<div class="synthesis">系统研判结论：${synergy}</div></div>`;
 
     output.innerHTML = resHtml + envHtml + interactHtml + verdictHtml;
 }
-</script>
 
+// --- 5. 新增的六爻逻辑层 ---
+function executeLiuYao() {
+    const yaoSymbols = { "阳": "—————", "阴": "—   —", "老阳": "— O —", "老阴": "— X —" };
+    let hex = [];
+    for(let i=0; i<6; i++) {
+        const coins = Math.floor(Math.random()*2) + Math.floor(Math.random()*2) + Math.floor(Math.random()*2);
+        let type = (coins === 3) ? "老阳" : (coins === 0) ? "老阴" : (coins === 1) ? "阳" : "阴";
+        hex.push({ type, symbol: yaoSymbols[type], rel: Object.keys(RELATIVES_MAP)[Math.floor(Math.random()*5)], move: type.includes("老") });
+    }
+    renderLiuYao(hex);
+}
+
+function renderLiuYao(hex) {
+    let html = `<div class="section" style="text-align:center;"><h3>六爻卦象 (自下而上)</h3>`;
+    [...hex].reverse().forEach(y => {
+        html += `<div class="yao-row" style="color:${y.move?'var(--highlight)':'var(--text)'}">${y.symbol} <small>[${y.rel}]</small></div>`;
+    });
+    html += `</div>`;
+    
+    const moving = hex.filter(h => h.move);
+    html += `<div class="section"><h3>变量博弈报告</h3>`;
+    if(moving.length === 0) html += `<p>系统处于静态平衡，建议维持现状。</p>`;
+    else moving.forEach(m => html += `<p>检测到 <strong>${m.rel}</strong> 因子活跃，其背后的 <strong>${RELATIVES_MAP[m.rel]}</strong> 正在发生位移。</p>`);
+    html += `<div class="synthesis">博弈总结：系统当前的对冲点在于内部变量的能量结算余量。</div></div>`;
+    document.getElementById('output').innerHTML = html;
+}
+</script>
 </body>
 </html>
